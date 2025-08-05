@@ -1,23 +1,35 @@
-# Use an official OpenJDK runtime as a parent image
-FROM openjdk:17-jdk-slim
+# Use Java 21 for Spring Boot
+FROM openjdk:21-jdk-slim as build
 
-# Set the working directory
+# Set work directory
 WORKDIR /app
 
-# Copy the Maven/Gradle wrapper files and pom.xml first (for caching)
-COPY pom.xml ./
+# Copy Maven wrapper and pom.xml
 COPY mvnw .
 COPY .mvn .mvn
-RUN chmod +x mvnw
+COPY pom.xml .
 
-# Copy the source code
-COPY src ./src
+# Download dependencies (helps with caching)
+RUN ./mvnw dependency:go-offline
 
-# Package the application (skip tests to speed up)
+# Copy all source code
+COPY src src
+
+# Package the application
 RUN ./mvnw clean package -DskipTests
 
-# Expose port 8080
+# -----------------------
+# Run stage
+# -----------------------
+FROM openjdk:21-jdk-slim
+
+WORKDIR /app
+
+# Copy jar from builder
+COPY --from=build /app/target/*.jar app.jar
+
+# Expose port
 EXPOSE 8080
 
 # Run the Spring Boot app
-CMD ["java", "-jar", "target/CalculatorSpringApplication-0.0.1-SNAPSHOT.jar"]
+ENTRYPOINT ["java","-jar","app.jar"]
